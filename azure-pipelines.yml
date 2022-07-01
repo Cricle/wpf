@@ -65,6 +65,38 @@ pr:
 
 # Call the pipeline.yml template, which does the real work
 stages:
+- stage: test
+  jobs:
+   - job: 
+        displayName: Run unit tests
+        pool:
+          name: AzurePipelines-EO
+          demands:
+          - ImageOverride -equals AzurePipelinesWindows2022compliant
+        steps:
+        - task: DownloadBuildArtifacts@1
+          displayName: Fetch Test Binaries
+        inputs:
+          buildType: 'specific'
+          project: '9ee6d478-d288-47f7-aacc-f6e6d082ae6d'
+          pipeline: '1145'
+          buildVersionToDownload: 'specific'
+          buildId: '1854309'
+          downloadPath: '$(System.ArtifactsDirectory)\testbinzip\'
+          checkDownloadedFiles: true
+
+      - task: ExtractFiles@1
+        displayName: Extract Test Bins
+        inputs:
+          archiveFilePatterns: '$(System.ArtifactsDirectory)\testbinzip\*.zip'
+          destinationFolder: '$(System.ArtifactsDirectory)\testbins'
+          cleanDestinationFolder: true
+          overwriteExistingFiles: false
+      - task: PowerShell@2
+        inputs:
+          targetType: 'inline'
+          script: '.\RunDrts.cmd'
+          workingDirectory: '$(System.ArtifactsDirectory)\testbins'
 - stage: build
   displayName: Build 
   jobs:
@@ -100,33 +132,3 @@ stages:
         -TsaRepositoryName "wpf"
         -TsaCodebaseName "wpf"
         -TsaPublish $True'
-   - job: 
-        displayName: Run unit tests
-        pool:
-          name: AzurePipelines-EO
-          demands:
-          - ImageOverride -equals AzurePipelinesWindows2022compliant
-        steps:
-        - task: DownloadBuildArtifacts@1
-          displayName: Fetch Test Binaries
-        inputs:
-          buildType: 'specific'
-          project: '9ee6d478-d288-47f7-aacc-f6e6d082ae6d'
-          pipeline: '1145'
-          buildVersionToDownload: 'specific'
-          buildId: '1854309'
-          downloadPath: '$(System.ArtifactsDirectory)\testbinzip\'
-          checkDownloadedFiles: true
-
-      - task: ExtractFiles@1
-        displayName: Extract Test Bins
-        inputs:
-          archiveFilePatterns: '$(System.ArtifactsDirectory)\testbinzip\*.zip'
-          destinationFolder: '$(System.ArtifactsDirectory)\testbins'
-          cleanDestinationFolder: true
-          overwriteExistingFiles: false
-      - task: PowerShell@2
-        inputs:
-          targetType: 'inline'
-          script: '.\RunDrts.cmd'
-          workingDirectory: '$(System.ArtifactsDirectory)\testbins'
