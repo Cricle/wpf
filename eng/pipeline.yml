@@ -165,45 +165,45 @@ jobs:
             Token: $(dn-bot-dnceng-artifact-feeds-rw)
 
       # Use utility script to run script command dependent on agent OS.
-      - script: eng\common\cibuild.cmd
-          -configuration $(_BuildConfig) 
-          -prepareMachine
-          $(_PublishArgs)
-          $(_SignArgs)
-          $(_OfficialBuildIdArgs)
-          $(_PlatformArgs)
-          $(_InternalRuntimeDownloadArgs)
-        displayName: Windows Build / Publish
-        # This condition should be kept in sync with the condition for 'Run DRTs' step 
-        #   When building on a regular pipeline (!_HelixPipeline), build as usual 
-        #   When building on a Helix pipeline, only build Release configs
-        #   (!_HelixPipeline) ||
-        #   (_HelixPipeline && _PublicBuildPipeline && _ContinuousIntegrationTestsEnabled && _BuildConfig == Release)
-        condition: or(ne(variables['_HelixPipeline'], 'true'), and(eq(variables['_HelixPipeline'], 'true') ,eq(variables['_BuildConfig'], 'Release'), eq(variables['_PublicBuildPipeline'], 'true'), eq(variables['_ContinuousIntegrationTestsEnabled'], 'true')))
+      #- script: eng\common\cibuild.cmd
+      #    -configuration $(_BuildConfig) 
+      #    -prepareMachine
+      #    $(_PublishArgs)
+      #    $(_SignArgs)
+      #    $(_OfficialBuildIdArgs)
+      #    $(_PlatformArgs)
+      #    $(_InternalRuntimeDownloadArgs)
+      #  displayName: Windows Build / Publish
+      #  # This condition should be kept in sync with the condition for 'Run DRTs' step 
+      #  #   When building on a regular pipeline (!_HelixPipeline), build as usual 
+      #  #   When building on a Helix pipeline, only build Release configs
+      #  #   (!_HelixPipeline) ||
+      #  #   (_HelixPipeline && _PublicBuildPipeline && _ContinuousIntegrationTestsEnabled && _BuildConfig == Release)
+      #  condition: or(ne(variables['_HelixPipeline'], 'true'), and(eq(variables['_HelixPipeline'], 'true') ,eq(variables['_BuildConfig'], 'Release'), eq(variables['_PublicBuildPipeline'], 'true'), eq(variables['_ContinuousIntegrationTestsEnabled'], 'true')))
 
-      # Run DRTs
-      - powershell: eng\common\cibuild.cmd
-          -configuration $(_BuildConfig)
-          $(_OfficialBuildIdArgs) 
-          $(_PlatformArgs)
-          -projects $(Build.SourcesDirectory)\eng\helixpublish.proj
-          /bl:$(BUILD.SOURCESDIRECTORY)\artifacts\log\$(_BuildConfig)\HelixDrt.binlog
-        displayName: Run Developer Regression Tests on Helix Machine (Release)
-        env:
-          HelixSource: $(_HelixSource)
-          HelixType: 'tests/drt'
-          HelixBuild: $(Build.BuildNumber)
-          HelixTargetQueues: $(_TestHelixAgentPool)
-          HelixAccessToken: $(_HelixToken)              # only defined for internal CI
-          Creator: $(_HelixCreator)
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        # This condition should be kept in sync with the condition for cibuild.cmd step with displayName: "Windows Build / Publish"
-        # Only run ...
-        # ...When building on a Helix pipeline, only build Release configs
-        #
-        #   (_HelixPipeline && _PublicBuildPipeline && _ContinuousIntegrationTestsEnabled && _BuildConfig == Release)
-        #
-        condition: and(succeeded(), eq(variables['_HelixPipeline'], 'true') ,eq(variables['_BuildConfig'], 'Release'), eq(variables['_PublicBuildPipeline'], 'true'), eq(variables['_ContinuousIntegrationTestsEnabled'], 'true'))
+      ## Run DRTs
+      #- powershell: eng\common\cibuild.cmd
+      #    -configuration $(_BuildConfig)
+      #    $(_OfficialBuildIdArgs) 
+      #    $(_PlatformArgs)
+      #    -projects $(Build.SourcesDirectory)\eng\helixpublish.proj
+      #    /bl:$(BUILD.SOURCESDIRECTORY)\artifacts\log\$(_BuildConfig)\HelixDrt.binlog
+      #  displayName: Run Developer Regression Tests on Helix Machine (Release)
+      #  env:
+      #    HelixSource: $(_HelixSource)
+      #    HelixType: 'tests/drt'
+      #    HelixBuild: $(Build.BuildNumber)
+      #    HelixTargetQueues: $(_TestHelixAgentPool)
+      #    HelixAccessToken: $(_HelixToken)              # only defined for internal CI
+      #    Creator: $(_HelixCreator)
+      #    SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      #  # This condition should be kept in sync with the condition for cibuild.cmd step with displayName: "Windows Build / Publish"
+      #  # Only run ...
+      #  # ...When building on a Helix pipeline, only build Release configs
+      #  #
+      #  #   (_HelixPipeline && _PublicBuildPipeline && _ContinuousIntegrationTestsEnabled && _BuildConfig == Release)
+      #  #
+      #  condition: and(succeeded(), eq(variables['_HelixPipeline'], 'true') ,eq(variables['_BuildConfig'], 'Release'), eq(variables['_PublicBuildPipeline'], 'true'), eq(variables['_ContinuousIntegrationTestsEnabled'], 'true'))
 
       - task: PowerShell@2
         displayName: Copy WPF binaries
@@ -240,3 +240,34 @@ jobs:
       #     downloadType: 'specific'
       #     downloadPath: '$(System.ArtifactsDirectory)\wpfbins\'
       #     checkDownloadedFiles: true
+
+    - job: 
+        displayName: Run unit tests
+        pool:
+          name: AzurePipelines-EO
+          demands:
+          - ImageOverride -equals AzurePipelinesWindows2022compliant
+          steps:
+          - task: DownloadBuildArtifacts@1
+            displayName: Fetch Test Binaries
+            inputs:
+                buildType: 'specific'
+                project: '9ee6d478-d288-47f7-aacc-f6e6d082ae6d'
+            pipeline: '1145'
+            buildVersionToDownload: 'specific'
+            buildId: '1854309'
+            downloadPath: '$(System.ArtifactsDirectory)\testbinzip\'
+            checkDownloadedFiles: true
+
+          - task: ExtractFiles@1
+            displayName: Extract Test Bins
+            inputs:
+                archiveFilePatterns: '$(System.ArtifactsDirectory)\testbinzip\*.zip'
+                destinationFolder: '$(System.ArtifactsDirectory)\testbins'
+                cleanDestinationFolder: true
+                overwriteExistingFiles: false
+          - task: PowerShell@2
+            inputs:
+                targetType: 'inline'
+                script: '.\RunDrts.cmd'
+                workingDirectory: '$(System.ArtifactsDirectory)\testbins'
